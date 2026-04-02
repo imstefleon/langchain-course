@@ -8,6 +8,8 @@ import json
 
 MAX_ITERATIONS = 10
 MODEL = "qwen3.5:0.8b"
+# Keep generation deterministic so the model follows the rules and calls tools.
+MODEL_OPTIONS = {"temperature": 0}
 
 
 # --- Tools (LangChain @tool decorator) ---
@@ -72,7 +74,12 @@ tools_for_llm = [
 
 @traceable(name="Ollama Chat", run_type="llm")
 def ollama_chat_traced(messages):
-    return ollama.chat(model=MODEL, tools=tools_for_llm, messages=messages)
+    return ollama.chat(
+        model=MODEL,
+        tools=tools_for_llm,
+        messages=messages,
+        options=MODEL_OPTIONS,
+    )
 
 # --- Agent Loop ---
 
@@ -96,16 +103,12 @@ def run_agent(question: str):
                 "You are a helpful shopping assistant. "
                 "You have access to a product catalog tool "
                 "and a discount tool.\n\n"
-                "STRICT RULES — you must follow these exactly:\n"
-                "1. NEVER guess or assume any product price. "
-                "You MUST call get_product_price first to get the real price.\n"
-                "2. Only call apply_discount AFTER you have received "
-                "a price from get_product_price. Pass the exact price "
-                "returned by get_product_price — do NOT pass a made-up number.\n"
-                "3. NEVER calculate discounts yourself using math. "
-                "Always use the apply_discount tool.\n"
-                "4. If the user does not specify a discount tier, "
-                "ask them which tier to use — do NOT assume one."
+                "CATALOG (use EXACT names, do NOT ask for models): laptop, headphones, keyboard.\n"
+                "STRICT RULES — follow exactly:\n"
+                "1) Always call get_product_price first; never guess prices.\n"
+                "2) After you have a price, immediately call apply_discount with that price when the user asked for a discount tier.\n"
+                "3) Never do math yourself; always use apply_discount.\n"
+                "4) Do NOT ask for a more specific product model — the catalog only has the three names above."
             ),
         },
         {"role": "user", "content": question},
